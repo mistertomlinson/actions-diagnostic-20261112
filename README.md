@@ -1,4 +1,4 @@
-# NuvioMobile iOS test runner (temporary workaround)
+# Nuvio cross-device test harness (temporary GitHub Actions workaround)
 
 This public repository is a **GitHub Actions execution harness only**.
 It is **not** the NuvioMobile source repository, product fork, production branch, or deployment destination.
@@ -49,6 +49,26 @@ gh workflow run nuvio-ios-rewatch.yml \
 ```
 
 Use the returned run URL to inspect progress and results.
+
+## VPS staging regression gate
+
+`.github/workflows/rewatch-vps-staging.yml` uses a disposable GitHub-hosted `ubuntu-latest` runner with Node.js 22.
+
+- **Source of truth:** `mistertomlinson/NuvioMobile`, branch `prototype/rewatch-vps-staging-20261110`.
+- **Pinned VPS source SHA:** `e447e830f0e2057e43a88cb6bd9c8f27e5edfab5`.
+- **Scope:** Reproduces that source branch's own `.github/workflows/rewatch-sync-staging.yml` checks: syntax, fail-closed staging/deployment guards, `npm test`, and a disposable multi-user server smoke test.
+- **Isolation:** All execution is on an ephemeral GitHub runner. No Oracle VPS logins, real secrets, deployment, service restarts, Caddy changes, real Simkl credentials, or app installations.
+- **Limitations:** This tests the staged server, not deployed VPS health and not real Android ↔ VPS ↔ iPad end-to-end compatibility.
+
+Manually run:
+
+```bash
+gh workflow run rewatch-vps-staging.yml \
+  --repo mistertomlinson/actions-diagnostic-20261112 \
+  --ref main
+```
+
+The source SHA is **immutable and separately pinned** from the iOS test source. For future VPS code changes, first inspect the staging branch's new HEAD, then update both the `git fetch` pin and the SHA assertion in this workflow; inspect the updated diff before running. Confirm the actual `npm test` and smoke-step conclusions, not only the dispatch response.
 
 ## Why not use actions/checkout?
 
