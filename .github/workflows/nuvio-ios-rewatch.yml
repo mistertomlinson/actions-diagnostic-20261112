@@ -23,12 +23,15 @@ jobs:
       NUVIO_KOTLIN_NATIVE_JVMARGS: -Xmx4608M
 
     steps:
-      - name: Check out exact NuvioMobile checkpoint (read-only)
-        uses: actions/checkout@v6
-        with:
-          repository: mistertomlinson/NuvioMobile
-          ref: a273972fe01e2ff8363f7df38768b118f1a8c98f
-          persist-credentials: false
+      - name: Fetch exact NuvioMobile checkpoint (read-only)
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Source is public; use plain git to avoid checkout's broken submodule cleanup.
+          git init -q
+          git remote add origin https://github.com/mistertomlinson/NuvioMobile.git
+          git -c protocol.version=2 fetch --no-tags --depth=1 origin a273972fe01e2ff8363f7df38768b118f1a8c98f
+          git checkout --detach --force FETCH_HEAD
 
       - name: Verify exact source commit
         shell: bash
