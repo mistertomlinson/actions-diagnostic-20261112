@@ -7,7 +7,8 @@ It is **not** the NuvioMobile source repository, product fork, production branch
 
 - Application source: https://github.com/mistertomlinson/NuvioMobile
 - iPad rewatch development branch: `feature/persistent-simkl-rewatch-0.6.7`
-- Initially pinned source SHA: `a273972fe01e2ff8363f7df38768b118f1a8c98f`
+- Initial checkpoint SHA (first test attempt): `a273972fe01e2ff8363f7df38768b118f1a8c98f`
+- Current pinned source SHA (iOS test assertion fix only): `8af4218a2a085216438704c920e29e53a2414c83`
 - Android TV fork: https://github.com/mistertomlinson/NuvioTV
 - Current original-repo issue: HTTP 422 "Actions has been disabled for this repository" on manual workflow dispatch, despite repository Actions settings being enabled. The precise cause has **not** been established.
 
