@@ -1,0 +1,153 @@
+name: Rewatch VPS staging tests (isolated runner)
+
+# CI-only, with no connection to the live Oracle VPS or app installations.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Verify isolated replay sync service
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Fetch pinned NuvioMobile VPS staging source (read-only)
+        shell: bash
+        run: |
+          set -euo pipefail
+          git init -q
+          git remote add origin https://github.com/mistertomlinson/NuvioMobile.git
+          git -c protocol.version=2 fetch --no-tags --depth=1 origin e447e830f0e2057e43a88cb6bd9c8f27e5edfab5
+          git checkout --detach --force FETCH_HEAD
+          test "$(git rev-parse HEAD)" = "e447e830f0e2057e43a88cb6bd9c8f27e5edfab5"
+          echo "VPS_TEST_SOURCE_SHA=$(git rev-parse HEAD)"
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check server and storage syntax
+        working-directory: services/rewatch-sync
+        run: |
+          node --check server.mjs
+          node --check store.mjs
+          node --check server.test.mjs
+          node --check scripts/enroll-staging-device.mjs
+          node --check scripts/enroll-staging-device.test.mjs
+          node --check scripts/smoke-installed-staging.mjs
+          node --check simkl-identity.mjs
+          node --check simkl-identity.test.mjs
+          node --check simkl-sessions.mjs
+          node --check simkl-sessions.test.mjs
+          node --check simkl-bootstrap.test.mjs
+      - name: Validate guarded staging provisioner syntax
+        working-directory: services/rewatch-sync
+        run: |
+          bash -n scripts/provision-staging.sh
+          bash -n scripts/update-staging.sh
+          bash -n scripts/update-staging-simkl.sh
+          bash -n scripts/update-staging-stable-device.sh
+          bash -n scripts/preview-caddy-placeholder.sh
+          bash -n scripts/diagnose-caddy-route-diff.sh
+          bash -n scripts/apply-caddy-placeholder.sh
+      - name: Verify updater pin guard resolves paths from another directory
+        run: |
+          set -euo pipefail
+          test ! -e /opt/nuvio-rewatch-staging/services/rewatch-sync/server.mjs
+          ROOT="$(pwd)"
+          SHA="$(git rev-parse HEAD)"
+          LOG="$(mktemp)"
+          if (cd /tmp && bash "$ROOT/services/rewatch-sync/scripts/update-staging.sh" "$SHA") >"$LOG" 2>&1; then
+            cat "$LOG"
+            echo "Updater unexpectedly succeeded on unprovisioned runner"
+            exit 1
+          fi
+          cat "$LOG"
+          grep -q "SOURCE_HEAD=${SHA:0:7}" "$LOG"
+          grep -q 'ERROR=EXISTING_STAGING_SERVICE_MISSING' "$LOG"
+      - name: Verify Caddy preview uses one temporary Caddyfile
+        working-directory: services/rewatch-sync
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          script = Path("scripts/preview-caddy-placeholder.sh").read_text()
+          assert script.count('caddy adapt --config "$tmp/Caddyfile"') == 2
+          assert script.count('caddy validate --config "$tmp/Caddyfile"') == 1
+          assert 'baseline.caddyfile' not in script
+          assert 'candidate.caddyfile' not in script
+          assert 'cat >> "$tmp/Caddyfile"' in script
+          print("CADDY_TEMP_PATH_REGRESSION=PASS")
+          PY
+      - name: Guard Caddy 503-only installation design
+        working-directory: services/rewatch-sync
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          script = Path("scripts/apply-caddy-placeholder.sh").read_text()
+          assert 'bash "$script_dir/preview-caddy-placeholder.sh" "$pin"' in script
+          assert 'respond "Rewatch sync is not available for public access." 503' in script
+          assert 'reverse_proxy' not in script
+          assert 'sudo -n cp -p "$caddy_path" "$backup_dir/Caddyfile"' in script
+          assert 'sudo -n systemctl reload caddy' in script
+          assert 'ROLLBACK=ATTEMPTED' in script
+          assert 'if [[ "$route_code" != "503" ]]' in script
+          print("FAIL_CLOSED_PLACEHOLDER_GUARDS=PASS")
+          PY
+      - name: Guard inactive Simkl staging upgrade rollback
+        working-directory: services/rewatch-sync
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          s = Path('scripts/update-staging-simkl.sh').read_text()
+          expected = [
+              'expected_installed_blob="3283e6d23c06b25f670e698a92cae53f08d667d6"',
+              'git hash-object "$installed_dir/server.mjs"',
+              'cmp -s "$installed_dir/store.mjs" "$source_dir/store.mjs"',
+              'cmp -s "$installed_dir/package.json" "$source_dir/package.json"',
+              'REWATCH_SIMKL_*', 'installed_modules=()',
+              'for name in "${installed_modules[@]}"',
+              'ROLLBACK=ATTEMPTED', 'ROLLBACK=RESTORED_AND_HEALTHY',
+              'systemctl restart "$unit"', 'SIMKL_BOOTSTRAP=DISABLED',
+              'PUBLIC_HTTPS_HTTP=503', 'SIMKL_BOOTSTRAP_HTTP=401',
+              'CADDY_CONFIG_CHANGED=NO', 'SIMKL_HISTORY_CHANGED=NO'
+          ]
+          for item in expected:
+              assert item in s, f'Missing invariant: {item}'
+          assert 'systemctl reload caddy' not in s
+          assert 'systemctl enable' not in s
+          print('SIMKL_STAGING_UPGRADE_GUARDS=PASS')
+          PY
+      - name: Verify stable-device staging update rollback guards
+        working-directory: services/rewatch-sync
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          s = Path('scripts/update-staging-stable-device.sh').read_text()
+          required = [
+              'old_server_blob="b76752ea40f77c5badf83f8686eb32386863eca4"',
+              'old_sessions_blob="cd612dd12bcbe38c04c5de92f05a7f0315c9cde3"',
+              'ROLLBACK=ATTEMPTED',
+              'ROLLBACK=RESTORED_AND_HEALTHY',
+              'simkl-sessions.mjs" "$install_dir/simkl-sessions.mjs"',
+              'server.mjs" "$install_dir/server.mjs"',
+              'SIMKL_BOOTSTRAP_HTTP=401',
+              'PUBLIC_HTTPS_HTTP=503',
+              'CADDY_CONFIG_CHANGED=NO',
+              'CREDENTIALS_CHANGED=NO',
+              'DATABASE_MIGRATED=NO',
+          ]
+          for item in required:
+              assert item in s, f'Missing stable-device safeguard: {item}'
+          assert 'systemctl reload caddy' not in s
+          assert 'systemctl enable' not in s
+          print('SIMKL_STABLE_DEVICE_UPDATER_GUARDS=PASS')
+          PY
+      - name: Run replay staging regression tests
+        working-directory: services/rewatch-sync
+        run: npm test
+      - name: End-to-end disposable multi-user smoke against staged modules
+        working-directory: services/rewatch-sync
+        env:
+          REWATCH_SMOKE_ALLOW_TEST_DIR: '1'
+        run: node scripts/smoke-installed-staging.mjs "$PWD"
