@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 12
     env:
-      REWATCH_THREE_WAY_ROOT: ${{ runner.temp }}/rewatch-three-way
+      REWATCH_THREE_WAY_ROOT: /tmp/rewatch-three-way
 
     steps:
       - name: Check out test-only harness
