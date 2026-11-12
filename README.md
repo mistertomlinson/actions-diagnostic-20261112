@@ -93,6 +93,19 @@ gh workflow run rewatch-three-way-contract.yml \
 
 Future AI: independently update and verify all three pinned source SHAs after client/server changes; never treat this workflow's PASS as permission to enable sync, expose a public endpoint, or deploy apps.
 
+## Staging checkpoint: 2026-11-12 (operator-reported)
+
+The Oracle VPS staging upgrade script returned **`RESULT=STAGING_TWO_FILE_UPGRADE_PASSED`** after installing the pinned server and store source from `NuvioMobile@e447e830f0e2057e43a88cb6bd9c8f27e5edfab5`. Operator output showed `60/60` Node tests, disposable smoke PASS, exact new source hashes, service active, autostart disabled, Simkl bootstrap disabled, loopback unauthenticated HTTP 401, public HTTPS 503, Caddy and credentials unchanged, and no database migration. The source commit itself was also independently tested in GitHub Actions (run `43323763682`). The installed VPS hash and health assertions are from the operator's run, **not** an independent remote session by this harness.
+
+**Do not enable client flags or expose the API yet.** Source audits of the current Android `726c9d8681a999f127f2e9995da5abb12e463dff` and iOS `8af4218a2a085216438704c920e29e53a2414c83` branches found:
+- Android `RewatchCrossDeviceGate.ENABLED = false`; iOS `RewatchMobileSyncGate.ENABLED = false`.
+- Both implement isolated local playback rewatch and optional replay-only sync transports, but remote `pullSeries` / `uploadPending` are not wired into a gated application lifecycle.
+- A remote-only series started on another device has no confirmed discovery/polling trigger in Home. A locally existing rewatch also needs an authenticated remote-empty checkpoint and explicit import enqueue before it can sync, even without a subsequent local playback write.
+- iOS `IosRewatchSyncRuntime.activateAfterValidatedRollout()` requires explicit installation; it is not called on app startup.
+- VPS Simkl bootstrap and HTTPS exposure are OFF, intentionally, so real apps cannot connect today.
+
+**Next implementation work (feature branches only):** introduce tested, explicit, gate-controlled reconciliation triggers for initial remote discovery, pre-play checkpoint and local import, post-save outbox drain, resume after offline/restart, and stale profile/credential changes. Keep network/certificate checks, existing watched-history protection, and feature gate OFF in all checked-in builds. Test these flows with fake transports on both platforms, re-run Android and focused iOS tests, then review a private HTTPS staging exposure plan before on-device activation. Do not assume that passing the simulated three-way Node test proves client lifecycle integration.
+
 ## Why not use actions/checkout?
 
 The source repository's tree contains a legacy `libass-android` gitlink without a matching `.gitmodules` URL, which caused `actions/checkout@v6` to fail during credential cleanup even after fetching the correct commit. This harness uses a minimal plain `git fetch` + detached checkout, then verifies the exact SHA. This is a workaround for checkout setup, **not** a NuvioMobile source fix.
