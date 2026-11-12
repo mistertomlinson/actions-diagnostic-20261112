@@ -1,0 +1,61 @@
+name: Rewatch Android iPad VPS protocol contract
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  three-way-contract:
+    name: Test pinned three-way replay protocol on disposable server
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      REWATCH_THREE_WAY_ROOT: ${{ runner.temp }}/rewatch-three-way
+
+    steps:
+      - name: Check out test-only harness
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Fetch reviewed Android, iPad, VPS source revisions (read-only)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$REWATCH_THREE_WAY_ROOT"
+          fetch_pin() {
+            local repo="$1" sha="$2" target="$3"
+            mkdir -p "$target"
+            git -C "$target" init -q
+            git -C "$target" remote add origin "https://github.com/mistertomlinson/$repo.git"
+            git -C "$target" -c protocol.version=2 fetch --no-tags --depth=1 origin "$sha"
+            git -C "$target" checkout --detach --force FETCH_HEAD
+            test "$(git -C "$target" rev-parse HEAD)" = "$sha"
+            echo "VERIFIED_PIN=$repo@$sha"
+          }
+          fetch_pin NuvioTV 726c9d8681a999f127f2e9995da5abb12e463dff "$REWATCH_THREE_WAY_ROOT/android"
+          fetch_pin NuvioMobile 8af4218a2a085216438704c920e29e53a2414c83 "$REWATCH_THREE_WAY_ROOT/ipad"
+          fetch_pin NuvioMobile e447e830f0e2057e43a88cb6bd9c8f27e5edfab5 "$REWATCH_THREE_WAY_ROOT/vps"
+      - name: Verify contract test syntax
+        run: node --check tests/rewatch-cross-device-contract.test.mjs
+      - name: Run cross-platform protocol compatibility scenarios
+        run: node --test tests/rewatch-cross-device-contract.test.mjs
+      - name: Report exact checked revisions and scope
+        if: success()
+        shell: bash
+        run: |
+          {
+            echo "## Disposable three-way replay protocol contract"
+            echo "- Android: 726c9d8681a999f127f2e9995da5abb12e463dff"
+            echo "- iPad: 8af4218a2a085216438704c920e29e53a2414c83"
+            echo "- VPS: e447e830f0e2057e43a88cb6bd9c8f27e5edfab5"
+            echo "- Source parity: Kotlin planner/API/reader"
+            echo "- Fake accounts and fake credentials; server binds to disposable 127.0.0.1 port"
+            echo "- No real Android or iPad device tests, no actual Simkl network calls, no VPS deployment"
+            echo "- Result: PASS"
+          } >> "$GITHUB_STEP_SUMMARY"
