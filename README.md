@@ -70,6 +70,29 @@ gh workflow run rewatch-vps-staging.yml \
 
 The source SHA is **immutable and separately pinned** from the iOS test source. For future VPS code changes, first inspect the staging branch's new HEAD, then update both the `git fetch` pin and the SHA assertion in this workflow; inspect the updated diff before running. Confirm the actual `npm test` and smoke-step conclusions, not only the dispatch response.
 
+## Android ↔ iPad ↔ VPS protocol compatibility gate
+
+.github/workflows/rewatch-three-way-contract.yml fetches **three distinct pinned commits** into separate directories on a disposable Ubuntu runner:
+
+- Android source: `726c9d8681a999f127f2e9995da5abb12e463dff` (NuvioTV).
+- iPad source: `8af4218a2a085216438704c920e29e53a2414c83` (NuvioMobile feature branch).
+- VPS source: `e447e830f0e2057e43a88cb6bd9c8f27e5edfab5` (NuvioMobile staging branch).
+
+It checks that the Kotlin event planner, VPS API, and remote checkpoint reader **source bodies are identical** after removing their intentionally different package declarations. Its Node test then loads the actual pinned VPS server and exchanges request JSON shaped exactly like the Kotlin planner's output, using **fake existing Simkl tokens** and a mocked Simkl verifier (never a real Simkl request). It covers an existing Office S3E18 replay, Android/iPad progress and completion, S3E19 Next Up, stale offline 409, metadata recovery, isolation, spoof rejection, STOP, and restart persistence.
+
+**Important limitation:** The Node test uses simulated client requests, not executable Android/iOS clients. Source parity is a static check and these tests do **not** prove that either actual app calls its transport. Full device↔VPS↔device end-to-end validation and production safety review still remain.
+
+Run only when the pin and workflow diff are reviewed:
+
+
+```bash
+gh workflow run rewatch-three-way-contract.yml \
+  --repo mistertomlinson/actions-diagnostic-20261112 \
+  --ref main
+```
+
+Future AI: independently update and verify all three pinned source SHAs after client/server changes; never treat this workflow's PASS as permission to enable sync, expose a public endpoint, or deploy apps.
+
 ## Why not use actions/checkout?
 
 The source repository's tree contains a legacy `libass-android` gitlink without a matching `.gitmodules` URL, which caused `actions/checkout@v6` to fail during credential cleanup even after fetching the correct commit. This harness uses a minimal plain `git fetch` + detached checkout, then verifies the exact SHA. This is a workaround for checkout setup, **not** a NuvioMobile source fix.
