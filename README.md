@@ -106,6 +106,21 @@ The Oracle VPS staging upgrade script returned **`RESULT=STAGING_TWO_FILE_UPGRAD
 
 **Next implementation work (feature branches only):** introduce tested, explicit, gate-controlled reconciliation triggers for initial remote discovery, pre-play checkpoint and local import, post-save outbox drain, resume after offline/restart, and stale profile/credential changes. Keep network/certificate checks, existing watched-history protection, and feature gate OFF in all checked-in builds. Test these flows with fake transports on both platforms, re-run Android and focused iOS tests, then review a private HTTPS staging exposure plan before on-device activation. Do not assume that passing the simulated three-way Node test proves client lifecycle integration.
 
+## Client lifecycle integration checkpoint (2026-11-12, not released)
+
+After the source audit described above, both feature branches received the dormant lifecycle wiring:
+
+- Android: `mistertomlinson/NuvioTV:design/persistent-simkl-rewatch-cross-device`, latest reviewed source `a35229aa9804b9f849bd26bd7eda1ecb9efcc122`. Added gated Home entry/return and pre-play refresh, validated server roster discovery, offline event drain before remote apply, durable local-only `IMPORT_SNAPSHOT` after verified empty checkpoint, background post-save upload, and local STOP / late-metadata handoff. The public DI facade keeps the implementation internal.
+- iPad: `mistertomlinson/NuvioMobile:feature/persistent-simkl-rewatch-0.6.7`, latest reviewed source `26a463f0c5de837f24c5707c30d5e49771e94f57`. Added equivalent shared foreground reconciliation, expect/actual platform hooks (iOS-only, NuvioMobile Android flavor no-op), pre-play/Home entry, asynchronous outbox upload, and STOP/metadata handling.
+- Both have new `RewatchForegroundSynchronizerTest` and remote-roster tests. `RewatchCrossDeviceGate.ENABLED = false`, `RewatchMobileSyncGate.ENABLED = false`. Server Simkl bootstrap OFF, public HTTPS still 503.
+- Latest three-way **simulated** protocol test run [43335608964](https://github.com/mistertomlinson/actions-diagnostic-20261112/actions/runs/43335608964) **PASS**, now including shared foreground policy parity between the new client commits and server `e447e83`.
+- Android CI [43335358090](https://github.com/mistertomlinson/actions-diagnostic-20261112/actions/runs/43335358090) is the first build after repairing an internal-class exposure compile error. Inspect its exact test and assemble conclusions before claiming Android built.
+- iPad focused simulator CI [43334699856](https://github.com/mistertomlinson/actions-diagnostic-20261112/actions/runs/43334699856) tests the final iPad SHA. Do not claim it passed until the run completes and the test log confirms it.
+- Original Android CI [43334664399](https://github.com/mistertomlinson/actions-diagnostic-20261112/actions/runs/43334664399) found two Kotlin `public` constructor/`internal` runtime exposure errors; both are addressed through `RewatchSyncFacade` after the failed build.
+- All CI Android build properties are **fake `example.invalid` values** on the ephemeral runner, never actual user credentials. Do not install that APK.
+
+Open release gates remain: verify both native builds, review account/series canonical alias handling across real clients, stage safe authenticated HTTPS exposure, confirm true signed-device APK↔VPS↔IPA sync and Simkl history immutability, then consider deliberately enabling the gates. A passing protocol simulation or one platform build alone does not justify activation.
+
 ## Why not use actions/checkout?
 
 The source repository's tree contains a legacy `libass-android` gitlink without a matching `.gitmodules` URL, which caused `actions/checkout@v6` to fail during credential cleanup even after fetching the correct commit. This harness uses a minimal plain `git fetch` + detached checkout, then verifies the exact SHA. This is a workaround for checkout setup, **not** a NuvioMobile source fix.
