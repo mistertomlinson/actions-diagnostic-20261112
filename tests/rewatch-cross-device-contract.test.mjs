@@ -45,6 +45,9 @@ test('Android and iPad share exact serialized event, API and response contracts'
     normalizeForeground(ipadForeground), 'foreground sync policy drift');
   const gate = await readFile(join(ipadDir, 'RewatchCommittedSaveHandoff.kt'), 'utf8');
   assert.match(gate, /internal object RewatchMobileSyncGate\s*\{\s*const val ENABLED = false/);
+  const tvGate = await readFile(join(sourceRoot, 'android',
+    'app/src/main/java/com/nuvio/tv/data/local/AndroidRewatchSyncRuntime.kt'), 'utf8');
+  assert.match(tvGate, /internal object RewatchCrossDeviceGate\s*\{\s*const val ENABLED = false/);
 });
 
 test('simulated iPad and Android replay events interoperate with actual staged server', async () => {
