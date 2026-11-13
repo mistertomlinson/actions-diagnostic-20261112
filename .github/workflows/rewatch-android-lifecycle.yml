@@ -50,10 +50,10 @@ jobs:
           mkdir -p source
           git -C source init -q
           git -C source remote add origin https://github.com/mistertomlinson/NuvioTV.git
-          git -C source -c protocol.version=2 fetch --no-tags --depth=1 origin e999ca82c7befc07a651b7a77ba49ffe5a907e66
+          git -C source -c protocol.version=2 fetch --no-tags --depth=1 origin a35229aa9804b9f849bd26bd7eda1ecb9efcc122
           git -C source checkout --detach --force FETCH_HEAD
-          test "$(git -C source rev-parse HEAD)" = "e999ca82c7befc07a651b7a77ba49ffe5a907e66"
-          echo "ANDROID_SOURCE_PIN=e999ca82c7befc07a651b7a77ba49ffe5a907e66"
+          test "$(git -C source rev-parse HEAD)" = "a35229aa9804b9f849bd26bd7eda1ecb9efcc122"
+          echo "ANDROID_SOURCE_PIN=a35229aa9804b9f849bd26bd7eda1ecb9efcc122"
       - name: Guard both platforms remain inactive
         shell: bash
         run: |
@@ -83,7 +83,7 @@ jobs:
         run: |
           {
             echo "## Android gated replay lifecycle"
-            echo "- Source: mistertomlinson/NuvioTV@e999ca82c7befc07a651b7a77ba49ffe5a907e66"
+            echo "- Source: mistertomlinson/NuvioTV@a35229aa9804b9f849bd26bd7eda1ecb9efcc122"
             echo "- Unit regression + assemble sideload: PASS"
             echo "- No APK upload or installation"
             echo "- Cross-device rollout flag stays OFF"
