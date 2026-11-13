@@ -132,6 +132,21 @@ All the following ran against the pinned source revisions (not deployed or insta
 - GitHub branch heads rechecked as the Android/iPad pinned SHAs above; both rollout gates remain `false`.
 - **NOT RELEASE-READY:** no full native regression suite in these runs, no actual signed Android ↔ VPS ↔ iPad end-to-end test, and no authenticated public/private HTTPS staging onboarding. The user's staging VPS continues to require controlled configuration before real-device connection; do not open the fail-closed 503 route or enable bootstrap/gates without a separately reviewed plan.
 
+### Public replay HTTPS deployment (operator-verified, November 12–13, 2026)
+
+The VPS operator ran pinned guarded deployment source `scripts/enable-rewatch-public.py` at `6d5b7055b7f4d8db6bd804261f56fae5c3dbd7e5`. Reported results:
+
+- `REWATCH_PUBLIC_HTTPS=ENABLED`; unauthenticated `GET https://nuviorewatch.duckdns.org/v1/rewatches` returned HTTP **401** both on the VPS and from the operator's Mac.
+- `SIMKL_BOOTSTRAP=ENABLED`; invalid bootstrap returned HTTP **400**, unknown paths 404, Caddy reload passed.
+- Exactly **one** Simkl OAuth client ID is currently allowlisted; verify the Android and iPad builds use that ID before expecting both to authenticate.
+- The dedicated `nuvio-rewatch-staging.service` is active, remains disabled at boot; the Node listener stays loopback behind Caddy.
+- Private rollback snapshot: `/root/rewatch-public-rollback-20261113T012427Z` (path only; no tokens or configuration copied into GitHub).
+- `RESULT=REWATCH_PUBLIC_HTTPS_READY`; `EXTERNAL_HTTPS_STATUS=401`.
+- Earlier failed preflights returned `NOT_DEPLOYED` or `ROLLBACK=RESTORED` and are superseded by the successful operator run.
+- **No live-device activation yet**: both test branches still have compile-time sync flag `false`, no signed IPA or authenticated cross-device run. Existing normal apps unchanged.
+
+The status above is grounded in user-supplied operator terminal output, not an independently authenticated remote SSH session.
+
 ## Why not use actions/checkout?
 
 The source repository's tree contains a legacy `libass-android` gitlink without a matching `.gitmodules` URL, which caused `actions/checkout@v6` to fail during credential cleanup even after fetching the correct commit. This harness uses a minimal plain `git fetch` + detached checkout, then verifies the exact SHA. This is a workaround for checkout setup, **not** a NuvioMobile source fix.
