@@ -75,7 +75,7 @@ apk="$(find "$checkout/app/build/outputs/apk/sideload" -type f \
 [[ -n "$apk" && -s "$apk" ]] || {
   echo "STOP=V7A_APK_MISSING"; exit 1;
 }
-unzip -Z1 "$apk" | grep -q '^lib/armeabi-v7a/' || {
+unzip -Z1 "$apk" | grep '^lib/armeabi-v7a/' >/dev/null || {
   echo "STOP=V7A_NATIVE_LIB_MISSING"; exit 1;
 }
 mkdir -p "$HOME/Downloads"
