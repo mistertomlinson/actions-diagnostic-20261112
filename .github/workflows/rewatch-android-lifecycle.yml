@@ -29,6 +29,20 @@ jobs:
           test -d "${ANDROID_HOME:-/usr/local/lib/android/sdk}"
           echo "ANDROID_HOME=${ANDROID_HOME:-/usr/local/lib/android/sdk}"
           ls -d "${ANDROID_HOME:-/usr/local/lib/android/sdk}"/platforms/android-* | tail -n 5
+      - name: Provide fake local-only build configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.nuvio"
+          chmod 700 "$HOME/.nuvio"
+          cat > "$HOME/.nuvio/secrets.properties" <<'FAKE_CONFIG'
+          CREDIT_ANALYZER_BASE_URL=https://example.invalid/
+          CREDIT_ANALYZER_TOKEN=ci-fake-only-not-a-credential
+          SUPABASE_URL=https://example.invalid/
+          SUPABASE_ANON_KEY=ci-fake-only-not-a-credential
+          FAKE_CONFIG
+          chmod 600 "$HOME/.nuvio/secrets.properties"
+          echo 'TEST_CONFIG=FAKE_NONPRODUCTION'
       - name: Fetch exact reviewed Android feature commit
         shell: bash
         run: |
@@ -36,10 +50,10 @@ jobs:
           mkdir -p source
           git -C source init -q
           git -C source remote add origin https://github.com/mistertomlinson/NuvioTV.git
-          git -C source -c protocol.version=2 fetch --no-tags --depth=1 origin c00039fb99910c3bd0016dff9a7acd1abcfb7d32
+          git -C source -c protocol.version=2 fetch --no-tags --depth=1 origin e999ca82c7befc07a651b7a77ba49ffe5a907e66
           git -C source checkout --detach --force FETCH_HEAD
-          test "$(git -C source rev-parse HEAD)" = "c00039fb99910c3bd0016dff9a7acd1abcfb7d32"
-          echo "ANDROID_SOURCE_PIN=c00039fb99910c3bd0016dff9a7acd1abcfb7d32"
+          test "$(git -C source rev-parse HEAD)" = "e999ca82c7befc07a651b7a77ba49ffe5a907e66"
+          echo "ANDROID_SOURCE_PIN=e999ca82c7befc07a651b7a77ba49ffe5a907e66"
       - name: Guard both platforms remain inactive
         shell: bash
         run: |
@@ -69,7 +83,7 @@ jobs:
         run: |
           {
             echo "## Android gated replay lifecycle"
-            echo "- Source: mistertomlinson/NuvioTV@c00039fb99910c3bd0016dff9a7acd1abcfb7d32"
+            echo "- Source: mistertomlinson/NuvioTV@e999ca82c7befc07a651b7a77ba49ffe5a907e66"
             echo "- Unit regression + assemble sideload: PASS"
             echo "- No APK upload or installation"
             echo "- Cross-device rollout flag stays OFF"
