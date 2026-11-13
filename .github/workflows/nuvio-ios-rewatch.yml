@@ -1,18 +1,21 @@
 name: Focused iPad Rewatch Simulator Tests
 
 on:
+  push:
+    paths:
+      - '.github/workflows/nuvio-ios-rewatch.yml'
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: nuvio-ios-rewatch-8af4218
+  group: nuvio-ios-rewatch-c433a47
   cancel-in-progress: true
 
 jobs:
   ios-rewatch:
-    name: Validate NuvioMobile 8af4218 rewatch on iOS simulator
+    name: Validate NuvioMobile c433a47 rewatch on iOS simulator
     runs-on: xcode-27
     timeout-minutes: 75
     env:
@@ -30,13 +33,13 @@ jobs:
           # Source is public; use plain git to avoid checkout's broken submodule cleanup.
           git init -q
           git remote add origin https://github.com/mistertomlinson/NuvioMobile.git
-          git -c protocol.version=2 fetch --no-tags --depth=1 origin 8af4218a2a085216438704c920e29e53a2414c83
+          git -c protocol.version=2 fetch --no-tags --depth=1 origin c433a4748cb3417f34413b71b06512510c90f226
           git checkout --detach --force FETCH_HEAD
 
       - name: Verify exact source commit
         shell: bash
         run: |
-          test "$(git rev-parse HEAD)" = "8af4218a2a085216438704c920e29e53a2414c83"
+          test "$(git rev-parse HEAD)" = "c433a4748cb3417f34413b71b06512510c90f226"
           echo "SOURCE_HEAD=$(git rev-parse HEAD)"
 
       - name: Set up Java 17
@@ -100,7 +103,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: nuvio-ios-rewatch-8af4218-test-reports
+          name: nuvio-ios-rewatch-c433a47-test-reports
           path: |
             composeApp/build/test-results/**/*
             composeApp/build/reports/tests/**/*
