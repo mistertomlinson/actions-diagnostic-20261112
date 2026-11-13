@@ -1,0 +1,90 @@
+name: Android public HTTPS device-test gate
+
+on:
+  push:
+    paths:
+      - '.github/workflows/rewatch-public-android-device-test.yml'
+      - 'tests/rewatch-android-lifecycle-trigger.txt'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  android-rewatch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out test harness only
+        uses: actions/checkout@v4
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Verify hosted Android SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -d "${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          echo "ANDROID_HOME=${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          ls -d "${ANDROID_HOME:-/usr/local/lib/android/sdk}"/platforms/android-* | tail -n 5
+      - name: Provide fake local-only build configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.nuvio"
+          chmod 700 "$HOME/.nuvio"
+          cat > "$HOME/.nuvio/secrets.properties" <<'FAKE_CONFIG'
+          CREDIT_ANALYZER_BASE_URL=https://example.invalid/
+          CREDIT_ANALYZER_TOKEN=ci-fake-only-not-a-credential
+          SUPABASE_URL=https://example.invalid/
+          SUPABASE_ANON_KEY=ci-fake-only-not-a-credential
+          FAKE_CONFIG
+          chmod 600 "$HOME/.nuvio/secrets.properties"
+          echo 'TEST_CONFIG=FAKE_NONPRODUCTION'
+      - name: Fetch exact reviewed Android feature commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p source
+          git -C source init -q
+          git -C source remote add origin https://github.com/mistertomlinson/NuvioTV.git
+          git -C source -c protocol.version=2 fetch --no-tags --depth=1 origin cae11e91d2b7e7ee47757df49beff8f1757bbc59
+          git -C source checkout --detach --force FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = "cae11e91d2b7e7ee47757df49beff8f1757bbc59"
+          echo "ANDROID_SOURCE_PIN=cae11e91d2b7e7ee47757df49beff8f1757bbc59"
+      - name: Guard both platforms remain inactive
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'const val ENABLED = true' source/app/src/main/java/com/nuvio/tv/data/local/AndroidRewatchSyncRuntime.kt
+          test -f source/app/src/main/java/com/nuvio/tv/domain/rewatch/RewatchForegroundSynchronizer.kt
+          test -f source/app/src/test/java/com/nuvio/tv/domain/rewatch/RewatchForegroundSynchronizerTest.kt
+          echo 'ANDROID_TEST_BRANCH_GATE=ON'
+      - name: Compile and run Android sideload replay regression tests
+        working-directory: source
+        shell: bash
+        env:
+          GRADLE_OPTS: '-Xmx1024m -Dfile.encoding=UTF-8'
+        run: |
+          chmod +x ./gradlew
+          ./gradlew :app:testSideloadUnitTest --tests '*Rewatch*' \
+            --no-daemon --console=plain \
+            -Dorg.gradle.jvmargs="-Xmx3g -Dfile.encoding=UTF-8 -XX:MaxMetaspaceSize=768m"
+      - name: Build sideload APK without installing
+        working-directory: source
+        shell: bash
+        run: |
+          ./gradlew :app:assembleSideload --no-daemon --console=plain \
+            -Dorg.gradle.jvmargs="-Xmx3g -Dfile.encoding=UTF-8 -XX:MaxMetaspaceSize=768m"
+      - name: Report exact source and isolation
+        if: success()
+        run: |
+          {
+            echo "## Android gated replay lifecycle"
+            echo "- Source: mistertomlinson/NuvioTV@cae11e91d2b7e7ee47757df49beff8f1757bbc59"
+            echo "- Unit regression + assemble sideload: PASS"
+            echo "- No APK upload or installation"
+            echo "- Test-only sync gate ON, normal feature branch OFF"
+          } >> "$GITHUB_STEP_SUMMARY"
