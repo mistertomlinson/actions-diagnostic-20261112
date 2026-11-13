@@ -1,0 +1,46 @@
+name: Validate guarded replay exposure helper
+on:
+  push:
+    paths:
+      - scripts/enable-rewatch-public.py
+      - .github/workflows/rewatch-public-deploy-validate.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile Python deployment helper
+        run: python3 -m py_compile scripts/enable-rewatch-public.py
+      - name: Check Caddy guard swap is deliberately narrow
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import ast, re
+          from pathlib import Path
+          tree=ast.parse(Path("scripts/enable-rewatch-public.py").read_text())
+          nodes=[node for node in tree.body
+                 if isinstance(node,(ast.ClassDef,ast.FunctionDef))
+                 and node.name in ("Stop","replace_guard")]
+          mod=ast.Module(body=nodes,type_ignores=[])
+          ns={"re":re}
+          exec(compile(mod,"guard_test","exec"),ns)
+          swap=ns["replace_guard"]
+          example="example.com {\n respond 204\n}\nnuviorewatch.duckdns.org {\n respond 503\n}\n"
+          out=swap(example)
+          assert "example.com {\n respond 204\n}" in out
+          assert "reverse_proxy 127.0.0.1:8765" in out
+          assert "respond 503" not in out
+          for body in ("reverse_proxy 127.0.0.1:9999",
+                       "respond 503\n handle {\n respond 404\n }"):
+              try: swap("nuviorewatch.duckdns.org {\n"+body+"\n}")
+              except ns["Stop"]: pass
+              else: raise AssertionError("unsafe non-503 guard accepted")
+          print("PYTHON_SYNTAX=PASS")
+          print("CADDY_REWRITE_SCOPE=PASS")
+          print("COMPLEX_GUARD_FAILS_CLOSED=PASS")
+          PY
