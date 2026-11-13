@@ -67,3 +67,40 @@ jobs:
           print("SYSTEMD_DISABLED_EXIT_1=PASS")
           print("SYSTEMD_ENABLED_REJECTED=PASS")
           PY
+
+      - name: Validate curl readiness retry and actionable failure status
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import ast
+          from pathlib import Path
+          tree = ast.parse(Path("scripts/enable-rewatch-public.py").read_text())
+          nodes = [node for node in tree.body
+                   if isinstance(node, (ast.ClassDef, ast.FunctionDef))
+                   and node.name in ("Stop", "check_http")]
+          assert len(nodes) == 2
+          import types
+          ns = {"time": types.SimpleNamespace(sleep=lambda _: None)}
+          exec(compile(ast.Module(body=nodes, type_ignores=[]),
+                       "retry_test", "exec"), ns)
+          calls = []
+          def transient(url, **kwargs):
+              calls.append(url)
+              if len(calls) < 3:
+                  raise ns["Stop"]("CURL_EXIT_7")
+              return "400"
+          ns["status"] = transient
+          ns["check_http"]("BOOTSTRAP_LOCAL_READY", "http://localhost/test",
+                           "400", attempts=5)
+          assert len(calls) == 3
+          ns["status"] = lambda *_a, **_kw: "503"
+          try:
+              ns["check_http"]("CADDY_READ", "https://example.test",
+                               "401", attempts=2)
+          except ns["Stop"] as error:
+              assert "HTTP_CADDY_READ_FAILED_EXPECTED_401_GOT_503" in str(error)
+          else:
+              raise AssertionError("Wrong HTTP result incorrectly accepted")
+          print("NODE_STARTUP_CURL_RETRY=PASS")
+          print("FAILED_HTTP_STAGE_DIAGNOSTIC=PASS")
+          PY
