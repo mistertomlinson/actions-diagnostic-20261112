@@ -33,13 +33,13 @@ jobs:
           # Source is public; use plain git to avoid checkout's broken submodule cleanup.
           git init -q
           git remote add origin https://github.com/mistertomlinson/NuvioMobile.git
-          git -c protocol.version=2 fetch --no-tags --depth=1 origin 5d40f739f716a4cd4296cfff2aab48afc4bc594b
+          git -c protocol.version=2 fetch --no-tags --depth=1 origin 27b08b4b548ef8afe5c38982697c9bf194ece2fc
           git checkout --detach --force FETCH_HEAD
 
       - name: Verify exact source commit
         shell: bash
         run: |
-          test "$(git rev-parse HEAD)" = "5d40f739f716a4cd4296cfff2aab48afc4bc594b"
+          test "$(git rev-parse HEAD)" = "27b08b4b548ef8afe5c38982697c9bf194ece2fc"
           echo "SOURCE_HEAD=$(git rev-parse HEAD)"
 
       - name: Set up Java 17
@@ -80,6 +80,7 @@ jobs:
         shell: bash
         run: |
           grep -q 'const val ENABLED = true' composeApp/src/commonMain/kotlin/com/nuvio/app/features/rewatch/RewatchCommittedSaveHandoff.kt
+          grep -q 'isolatedIpadDeviceTestEnablesReplayOnlySyncButDoesNotAutoInstallSink' composeApp/src/commonTest/kotlin/com/nuvio/app/features/rewatch/RewatchCommittedSaveHandoffTest.kt
           echo 'IPAD_TEST_BRANCH_GATE=ON'
 
       - name: Run focused rewatch iOS simulator tests
