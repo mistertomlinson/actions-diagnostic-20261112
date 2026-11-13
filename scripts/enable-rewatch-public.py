@@ -12,6 +12,7 @@ import shutil
 import tempfile
 import datetime
 import subprocess as sp
+import time
 
 HOST = "nuviorewatch.duckdns.org"
 SERVICE = "nuvio-rewatch-staging.service"
@@ -44,7 +45,25 @@ def status(url, body=None, local_caddy=False):
         args += ["--resolve", f"{HOST}:443:127.0.0.1"]
     if body is not None:
         args += ["-H", "Content-Type: application/json", "--data", body]
-    return run(*(args + [url]))
+    proc = sp.run(args + [url], capture_output=True, text=True)
+    if proc.returncode:
+        # No response bodies, tokens or raw command arguments in output.
+        raise Stop(f"CURL_EXIT_{proc.returncode}")
+    return proc.stdout.strip()
+
+def check_http(label, url, expected, body=None, local_caddy=False,
+               attempts=1):
+    last = "NOT_ATTEMPTED"
+    for attempt in range(attempts):
+        try:
+            last = status(url, body=body, local_caddy=local_caddy)
+        except Stop as error:
+            last = str(error)
+        if last == expected:
+            return
+        if attempt + 1 < attempts:
+            time.sleep(1)
+    raise Stop(f"HTTP_{label}_FAILED_EXPECTED_{expected}_GOT_{last}")
 
 def replace_guard(source):
     pat = re.compile(
@@ -119,8 +138,8 @@ try:
         raise Stop("BOOTSTRAP_ALREADY_ENABLED")
     local = "http://127.0.0.1:8765/v1/rewatches"
     public = f"https://{HOST}/v1/rewatches"
-    if status(local) != "401" or status(public, local_caddy=True) != "503":
-        raise Stop("BASELINE_HTTP_UNEXPECTED")
+    check_http("BASELINE_LOCAL", local, "401")
+    check_http("BASELINE_CADDY", public, "503", local_caddy=True)
     if not re.search(r"127\.0\.0\.1:8765\s", run("ss", "-lnt")):
         raise Stop("NO_LOOPBACK_LISTENER")
     original = CADDY.read_text()
@@ -157,20 +176,23 @@ try:
 
     # Invalid installationId produces 400 only when bootstrap handler is active.
     invalid = '{"installationId":"invalid","clientId":"invalid"}'
-    if status("http://127.0.0.1:8765/v1/simkl/bootstrap", body=invalid) != "400":
-        raise Stop("BOOTSTRAP_ROUTE_NOT_ACTIVE")
+    # systemctl marks Type=simple active before Node finishes binding 8765.
+    # Retry the actual endpoint instead of racing the listener startup.
+    check_http("BOOTSTRAP_LOCAL_READY",
+               "http://127.0.0.1:8765/v1/simkl/bootstrap", "400",
+               body=invalid, attempts=12)
 
     prepared.replace(CADDY)
     prepared = None
     site_changed = True
     run("caddy", "validate", "--config", str(CADDY), "--adapter", "caddyfile")
     run("systemctl", "reload", "caddy")
-    if status(public, local_caddy=True) != "401" or \
-            status(f"https://{HOST}/v1/simkl/bootstrap",
-                   body=invalid, local_caddy=True) != "400" or \
-            status(f"https://{HOST}/", local_caddy=True) != "404" or \
-            status(local) != "401":
-        raise Stop("PUBLIC_HTTP_CHECK_FAILED")
+    check_http("CADDY_READ", public, "401", local_caddy=True, attempts=12)
+    check_http("CADDY_BOOTSTRAP", f"https://{HOST}/v1/simkl/bootstrap",
+               "400", body=invalid, local_caddy=True, attempts=8)
+    check_http("CADDY_UNKNOWN_PATH", f"https://{HOST}/",
+               "404", local_caddy=True, attempts=8)
+    check_http("LOCAL_READ", local, "401", attempts=8)
     if not service_autostart_disabled():
         raise Stop("SERVICE_AUTOSTART_CHANGED")
     completed = True
