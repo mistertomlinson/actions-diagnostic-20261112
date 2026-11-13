@@ -50,17 +50,18 @@ jobs:
           mkdir -p source
           git -C source init -q
           git -C source remote add origin https://github.com/mistertomlinson/NuvioTV.git
-          git -C source -c protocol.version=2 fetch --no-tags --depth=1 origin cae11e91d2b7e7ee47757df49beff8f1757bbc59
+          git -C source -c protocol.version=2 fetch --no-tags --depth=1 origin e65c223353a7d01add64103832a344b6b752d112
           git -C source checkout --detach --force FETCH_HEAD
-          test "$(git -C source rev-parse HEAD)" = "cae11e91d2b7e7ee47757df49beff8f1757bbc59"
-          echo "ANDROID_SOURCE_PIN=cae11e91d2b7e7ee47757df49beff8f1757bbc59"
-      - name: Guard both platforms remain inactive
+          test "$(git -C source rev-parse HEAD)" = "e65c223353a7d01add64103832a344b6b752d112"
+          echo "ANDROID_SOURCE_PIN=e65c223353a7d01add64103832a344b6b752d112"
+      - name: Verify isolated Android rollout gate and regression policy
         shell: bash
         run: |
           set -euo pipefail
           grep -q 'const val ENABLED = true' source/app/src/main/java/com/nuvio/tv/data/local/AndroidRewatchSyncRuntime.kt
           test -f source/app/src/main/java/com/nuvio/tv/domain/rewatch/RewatchForegroundSynchronizer.kt
           test -f source/app/src/test/java/com/nuvio/tv/domain/rewatch/RewatchForegroundSynchronizerTest.kt
+          grep -q 'assertTrue(' source/app/src/test/java/com/nuvio/tv/data/local/RewatchRolloutGateTest.kt
           echo 'ANDROID_TEST_BRANCH_GATE=ON'
       - name: Compile and run Android sideload replay regression tests
         working-directory: source
@@ -83,7 +84,7 @@ jobs:
         run: |
           {
             echo "## Android gated replay lifecycle"
-            echo "- Source: mistertomlinson/NuvioTV@cae11e91d2b7e7ee47757df49beff8f1757bbc59"
+            echo "- Source: mistertomlinson/NuvioTV@e65c223353a7d01add64103832a344b6b752d112"
             echo "- Unit regression + assemble sideload: PASS"
             echo "- No APK upload or installation"
             echo "- Test-only sync gate ON, normal feature branch OFF"
