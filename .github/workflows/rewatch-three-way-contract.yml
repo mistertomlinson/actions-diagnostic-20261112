@@ -38,8 +38,8 @@ jobs:
             test "$(git -C "$target" rev-parse HEAD)" = "$sha"
             echo "VERIFIED_PIN=$repo@$sha"
           }
-          fetch_pin NuvioTV 726c9d8681a999f127f2e9995da5abb12e463dff "$REWATCH_THREE_WAY_ROOT/android"
-          fetch_pin NuvioMobile 8af4218a2a085216438704c920e29e53a2414c83 "$REWATCH_THREE_WAY_ROOT/ipad"
+          fetch_pin NuvioTV a35229aa9804b9f849bd26bd7eda1ecb9efcc122 "$REWATCH_THREE_WAY_ROOT/android"
+          fetch_pin NuvioMobile 26a463f0c5de837f24c5707c30d5e49771e94f57 "$REWATCH_THREE_WAY_ROOT/ipad"
           fetch_pin NuvioMobile e447e830f0e2057e43a88cb6bd9c8f27e5edfab5 "$REWATCH_THREE_WAY_ROOT/vps"
       - name: Verify contract test syntax
         run: node --check tests/rewatch-cross-device-contract.test.mjs
@@ -51,8 +51,8 @@ jobs:
         run: |
           {
             echo "## Disposable three-way replay protocol contract"
-            echo "- Android: 726c9d8681a999f127f2e9995da5abb12e463dff"
-            echo "- iPad: 8af4218a2a085216438704c920e29e53a2414c83"
+            echo "- Android: a35229aa9804b9f849bd26bd7eda1ecb9efcc122"
+            echo "- iPad: 26a463f0c5de837f24c5707c30d5e49771e94f57"
             echo "- VPS: e447e830f0e2057e43a88cb6bd9c8f27e5edfab5"
             echo "- Source parity: Kotlin planner/API/reader"
             echo "- Fake accounts and fake credentials; server binds to disposable 127.0.0.1 port"
