@@ -30,6 +30,13 @@ def run(*args):
         raise Stop(f"COMMAND_FAILED={args[0]}:{args[1] if len(args) > 1 else ''}")
     return p.stdout.strip()
 
+def service_autostart_disabled():
+    # systemctl is-enabled intentionally exits 1 for the ordinary "disabled"
+    # state; command status 1 must not abort this staging-only deploy.
+    p = sp.run(["systemctl", "is-enabled", SERVICE],
+               capture_output=True, text=True)
+    return p.stdout.strip() == "disabled" and p.returncode in (0, 1)
+
 def status(url, body=None, local_caddy=False):
     args = ["curl", "--noproxy", "*", "-sS", "--max-time", "8",
             "-o", "/dev/null", "-w", "%{http_code}"]
@@ -93,7 +100,7 @@ try:
         raise Stop("DUPLICATE_SIMKL_APP_IDS")
     if run("systemctl", "is-active", SERVICE) != "active":
         raise Stop("SERVICE_NOT_ACTIVE")
-    if run("systemctl", "is-enabled", SERVICE) != "disabled":
+    if not service_autostart_disabled():
         raise Stop("SERVICE_AUTOSTART_UNEXPECTED")
     if run("systemctl", "show", SERVICE, "-p", "User", "--value") != "nuvio-rewatch":
         raise Stop("SERVICE_USER_UNEXPECTED")
@@ -164,7 +171,7 @@ try:
             status(f"https://{HOST}/", local_caddy=True) != "404" or \
             status(local) != "401":
         raise Stop("PUBLIC_HTTP_CHECK_FAILED")
-    if run("systemctl", "is-enabled", SERVICE) != "disabled":
+    if not service_autostart_disabled():
         raise Stop("SERVICE_AUTOSTART_CHANGED")
     completed = True
     print("REWATCH_PUBLIC_HTTPS=ENABLED")
