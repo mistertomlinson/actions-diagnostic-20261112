@@ -30,6 +30,19 @@ test('Android and iPad share exact serialized event, API and response contracts'
     const stripPackage = text => text.replace(/^package [^\n]+\n/, '');
     assert.equal(stripPackage(android), stripPackage(ipad), filename + ' contract drift');
   }
+  // Foreground reconcile has platform-specific storage adapters but the
+  // shared core policy must not drift between Android and iPad.
+  const foreground = 'RewatchForegroundSynchronizer.kt';
+  const [androidForeground, ipadForeground] = await Promise.all([
+    readFile(join(androidDir, foreground), 'utf8'),
+    readFile(join(ipadDir, foreground), 'utf8')
+  ]);
+  const normalizeForeground = text => text
+    .replace(/^package [^\n]*\n\n/, '')
+    .replace('import com.nuvio.tv.data.local.RewatchObservedLocalSync\n', '')
+    .trim();
+  assert.equal(normalizeForeground(androidForeground),
+    normalizeForeground(ipadForeground), 'foreground sync policy drift');
   const gate = await readFile(join(ipadDir, 'RewatchCommittedSaveHandoff.kt'), 'utf8');
   assert.match(gate, /internal object RewatchMobileSyncGate\s*\{\s*const val ENABLED = false/);
 });
