@@ -1,6 +1,10 @@
 name: Rewatch Android iPad VPS protocol contract
 
 on:
+  push:
+    paths:
+      - '.github/workflows/rewatch-three-way-contract.yml'
+      - 'tests/rewatch-cross-device-contract.test.mjs'
   workflow_dispatch:
 
 permissions:
