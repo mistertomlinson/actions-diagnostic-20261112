@@ -1,0 +1,117 @@
+name: iPad public HTTPS device-test simulator gate
+
+on:
+  push:
+    paths:
+      - '.github/workflows/rewatch-public-ios-device-test.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nuvio-ios-public-https-test
+  cancel-in-progress: true
+
+jobs:
+  ios-rewatch:
+    name: Validate NuvioMobile public HTTPS test variant on iOS simulator
+    runs-on: xcode-27
+    timeout-minutes: 75
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_27.1.app/Contents/Developer
+      GRADLE_OPTS: -Dfile.encoding=UTF-8
+      KOTLIN_DAEMON_JVMARGS: -Xmx2048M
+      NUVIO_GRADLE_JVMARGS: -Xmx4608M -Dfile.encoding=UTF-8 -XX:MaxMetaspaceSize=768M
+      NUVIO_KOTLIN_NATIVE_JVMARGS: -Xmx4608M
+
+    steps:
+      - name: Fetch exact NuvioMobile checkpoint (read-only)
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Source is public; use plain git to avoid checkout's broken submodule cleanup.
+          git init -q
+          git remote add origin https://github.com/mistertomlinson/NuvioMobile.git
+          git -c protocol.version=2 fetch --no-tags --depth=1 origin 5d40f739f716a4cd4296cfff2aab48afc4bc594b
+          git checkout --detach --force FETCH_HEAD
+
+      - name: Verify exact source commit
+        shell: bash
+        run: |
+          test "$(git rev-parse HEAD)" = "5d40f739f716a4cd4296cfff2aab48afc4bc594b"
+          echo "SOURCE_HEAD=$(git rev-parse HEAD)"
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Cache Kotlin Native
+        uses: actions/cache@v5
+        with:
+          path: ~/.konan
+          key: konan-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('gradle/libs.versions.toml') }}
+          restore-keys: |
+            konan-${{ runner.os }}-${{ runner.arch }}-
+
+      - name: Verify Apple toolchain
+        shell: bash
+        run: |
+          test "$(uname -m)" = "arm64"
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+
+      - name: Ensure optional simulator-only properties file exists
+        shell: bash
+        run: |
+          if [[ ! -f local.properties ]]; then : > local.properties; fi
+          test -f local.properties
+
+      - name: Prepare iOS dependencies
+        shell: bash
+        run: ./scripts/prepare-ios-dependencies.sh
+
+      - name: Verify test-only iPad gate enabled
+        shell: bash
+        run: |
+          grep -q 'const val ENABLED = true' composeApp/src/commonMain/kotlin/com/nuvio/app/features/rewatch/RewatchCommittedSaveHandoff.kt
+          echo 'IPAD_TEST_BRANCH_GATE=ON'
+
+      - name: Run focused rewatch iOS simulator tests
+        shell: bash
+        run: |
+          ./gradlew :composeApp:iosSimulatorArm64Test \
+            --tests '*Rewatch*' \
+            -Pnuvio.ios.distribution=full \
+            -Dorg.gradle.jvmargs="-Xmx4608M -Dfile.encoding=UTF-8 -XX:MaxMetaspaceSize=768M" \
+            -Pkotlin.native.jvmArgs="-Xmx4608M" \
+            --console=plain
+
+      - name: Summarize test outcome
+        if: success()
+        shell: bash
+        run: |
+          {
+            echo "## iPad rewatch focused iOS simulator tests"
+            echo "Source: mistertomlinson/NuvioMobile"
+            echo "Commit: $(git rev-parse HEAD)"
+            echo "Scope: --tests '*Rewatch*'"
+            echo "Result: PASS"
+            echo "IPA: not built; deployment: none"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload available test reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: nuvio-ios-live-test-test-reports
+          path: |
+            composeApp/build/test-results/**/*
+            composeApp/build/reports/tests/**/*
+          if-no-files-found: ignore
+          retention-days: 7
