@@ -200,3 +200,4 @@ finally:
             pass
     if not completed:
         print("RESULT=NOT_DEPLOYED")
+        raise SystemExit(1)
