@@ -121,6 +121,17 @@ After the source audit described above, both feature branches received the dorma
 
 Open release gates remain: verify both native builds, review account/series canonical alias handling across real clients, stage safe authenticated HTTPS exposure, confirm true signed-device APK↔VPS↔IPA sync and Simkl history immutability, then consider deliberately enabling the gates. A passing protocol simulation or one platform build alone does not justify activation.
 
+### Validation results for the dormant client lifecycle checkpoint
+
+All the following ran against the pinned source revisions (not deployed or installed):
+
+- **Android** [Actions run 43335358090](https://github.com/mistertomlinson/actions-diagnostic-20261112/actions/runs/43335358090): **SUCCESS** — `*Rewatch*` sideload unit tests and `:app:assembleSideload`, source `a35229aa9804b9f849bd26bd7eda1ecb9efcc122`. Build used **dummy local `example.invalid` settings**, not real credentials.
+- **iPad** [Actions run 43334699856](https://github.com/mistertomlinson/actions-diagnostic-20261112/actions/runs/43334699856): **SUCCESS** — focused `*Rewatch*` iOS simulator tests, source `26a463f0c5de837f24c5707c30d5e49771e94f57`. No signed IPA or device install.
+- **Three-way contract** [Actions run 43335608964](https://github.com/mistertomlinson/actions-diagnostic-20261112/actions/runs/43335608964): **SUCCESS** — source parity and simulated HTTP exchange against VPS source `e447e830f0e2057e43a88cb6bd9c8f27e5edfab5`.
+- **Repeat three-way contract** [Actions run 43335985852](https://github.com/mistertomlinson/actions-diagnostic-20261112/actions/runs/43335985852): **SUCCESS**, same client/server pins after updating documentation.
+- GitHub branch heads rechecked as the Android/iPad pinned SHAs above; both rollout gates remain `false`.
+- **NOT RELEASE-READY:** no full native regression suite in these runs, no actual signed Android ↔ VPS ↔ iPad end-to-end test, and no authenticated public/private HTTPS staging onboarding. The user's staging VPS continues to require controlled configuration before real-device connection; do not open the fail-closed 503 route or enable bootstrap/gates without a separately reviewed plan.
+
 ## Why not use actions/checkout?
 
 The source repository's tree contains a legacy `libass-android` gitlink without a matching `.gitmodules` URL, which caused `actions/checkout@v6` to fail during credential cleanup even after fetching the correct commit. This harness uses a minimal plain `git fetch` + detached checkout, then verifies the exact SHA. This is a workaround for checkout setup, **not** a NuvioMobile source fix.
