@@ -44,3 +44,26 @@ jobs:
           print("CADDY_REWRITE_SCOPE=PASS")
           print("COMPLEX_GUARD_FAILS_CLOSED=PASS")
           PY
+      - name: Verify disabled systemd unit exit status handling
+        run: |
+          python3 - <<'PY'
+          import ast
+          from pathlib import Path
+          from unittest.mock import Mock
+          src=Path("scripts/enable-rewatch-public.py").read_text()
+          tree=ast.parse(src)
+          nodes=[x for x in tree.body if isinstance(x,ast.FunctionDef)
+                 and x.name=="service_autostart_disabled"]
+          assert len(nodes)==1
+          ns={"sp": Mock(), "SERVICE":"nuvio-rewatch-staging.service"}
+          exec(compile(ast.Module(body=nodes,type_ignores=[]),
+                       "unit_test", "exec"),ns)
+          ns["sp"].run.return_value=Mock(stdout="disabled\n",returncode=1)
+          assert ns["service_autostart_disabled"]()
+          ns["sp"].run.return_value=Mock(stdout="enabled\n",returncode=0)
+          assert not ns["service_autostart_disabled"]()
+          ns["sp"].run.return_value=Mock(stdout="",returncode=1)
+          assert not ns["service_autostart_disabled"]()
+          print("SYSTEMD_DISABLED_EXIT_1=PASS")
+          print("SYSTEMD_ENABLED_REJECTED=PASS")
+          PY
