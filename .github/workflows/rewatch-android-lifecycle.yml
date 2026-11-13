@@ -22,8 +22,13 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Verify hosted Android SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -d "${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          echo "ANDROID_HOME=${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          ls -d "${ANDROID_HOME:-/usr/local/lib/android/sdk}"/platforms/android-* | tail -n 5
       - name: Fetch exact reviewed Android feature commit
         shell: bash
         run: |
