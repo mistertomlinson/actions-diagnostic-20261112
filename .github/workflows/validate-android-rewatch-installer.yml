@@ -1,0 +1,30 @@
+name: Validate Android test build and install helper
+
+on:
+  push:
+    paths:
+      - scripts/build-install-android-rewatch-https.sh
+      - .github/workflows/validate-android-rewatch-installer.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify shell syntax and installation protections
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n scripts/build-install-android-rewatch-https.sh
+          grep -q 'PIN="e65c223353a7d01add64103832a344b6b752d112"' scripts/build-install-android-rewatch-https.sh
+          grep -q 'git -C "$SOURCE" worktree add --detach' scripts/build-install-android-rewatch-https.sh
+          grep -q "install -r" scripts/build-install-android-rewatch-https.sh
+          grep -q "cmd package compile -f -m speed" scripts/build-install-android-rewatch-https.sh
+          ! grep -q -E 'adb.*uninstall|pm clear|git reset --hard' scripts/build-install-android-rewatch-https.sh
+          echo "BASH_SYNTAX=PASS"
+          echo "PINNED_TEST_SOURCE=PASS"
+          echo "UNINSTALL_OR_CLEAR_DATA=NONE"
